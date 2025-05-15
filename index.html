@@ -1,25 +1,23 @@
+
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <title>FaceAPI.js Webcam - Detecção de Rostos</title>
+  <title>Detecção de Rostos - FaceAPI.js</title>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
   <style>
-    video {
-      position: relative;
-      width: 720px;
-      height: 560px;
-    }
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
+    body { font-family: sans-serif; text-align: center; margin: 20px; }
+    #wrapper { position: relative; display: inline-block; }
+    #overlay { position: absolute; top: 0; left: 0; }
+    img { display: block; }
   </style>
 </head>
 <body>
-  <h1>FaceAPI.js com Webcam</h1>
-  <video id="video" autoplay muted></video>
+  <h1>Detecção de Rostos com FaceAPI.js</h1>
+  <div id="wrapper">
+    <img id="inputImage" src="images/foto.jpg" alt="Imagem para detecção" />
+    <canvas id="overlay"></canvas>
+  </div>
   <script defer src="script.js"></script>
 </body>
 </html>
