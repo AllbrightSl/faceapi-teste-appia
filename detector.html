@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detector Ajustado</title>
+    <style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f0f0f0;
+        text-align: center;
+    }
+    
+    .container {
+        position: relative;
+        display: inline-block;
+        margin: 20px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        background: white;
+        padding: 10px;
+    }
+
+    #overlay {
+        position: absolute;
+        left: 0;
+        top: 0;
+        pointer-events: none;
+    }
+
+    #inputImage {
+        max-width: 90vw;
+        height: auto;
+        border: 2px solid #ddd;
+    }
+</style>
+</head>
+<body>
+    <h1 style="text-align: center; color: #333; margin: 20px 0;">Detector de Proximidade Facial</h1>
+    <div class="container">
+        <img id="inputImage" src="foto-teste.jpg" crossorigin="anonymous"/>
+        <canvas id="overlay"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script>
+        async function run() {
+
+            const MODELO = 'ssd'
+            const INPUT_SIZE = 2048
+            const SCORE_THRESHOLD = 0.2
+
+            await loadModel(MODELO);
+            
+            const img = document.getElementById('inputImage');
+            const canvas = document.getElementById('overlay');
+            
+            const { width, height } = await getImageDimensions(img);
+            canvas.width = width;
+            canvas.height = height;
+            
+            const detections = await detectFaces(img, MODELO, INPUT_SIZE, SCORE_THRESHOLD);
+            
+            drawResults(canvas, detections, MODELO);
+            
+
+            logDetectionData(detections, width, height, MODELO, INPUT_SIZE, SCORE_THRESHOLD);
+        }
+
+        async function loadModel(model) {
+            const models = {
+                'tiny': faceapi.nets.tinyFaceDetector,
+                'ssd': faceapi.nets.ssdMobilenetv1,
+                'mtcnn': faceapi.nets.mtcnn
+            };
+            await models[model].loadFromUri('https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/');
+        }
+
+    async function getImageDimensions(img) {
+    const rect = img.getBoundingClientRect();
+    return {
+        width: rect.width,
+        height: rect.height
+    };
+}
+
+        async function detectFaces(img, model, inputSize, scoreThreshold) {
+            const options = {
+                'tiny': new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold }),
+                'ssd': new faceapi.SsdMobilenetv1Options({ minConfidence: scoreThreshold }),
+                'mtcnn': new faceapi.MtcnnOptions({ minFaceSize: 50 })
+            };
+            
+            return model === 'mtcnn' 
+                ? (await faceapi.detectAllFaces(img, options[model]).map(res => res.detection))
+                : await faceapi.detectAllFaces(img, options[model]);
+        }
+
+function drawResults(canvas, detections, model) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    faceapi.draw.drawDetections(canvas, detections);
+    
+    const LABEL_MARGIN = 15;
+    const LINE_HEIGHT = 18;
+    const prevLabels = [];
+    
+    function findBestPosition(box) {
+        const positions = [
+            { x: box.x, y: box.y - LABEL_MARGIN },
+            { x: box.x, y: box.y + box.height + LABEL_MARGIN },
+            { x: box.x + box.width + LABEL_MARGIN, y: box.y },
+            { x: box.x - 100, y: box.y } 
+        ];
+
+        return positions.find(pos => {
+            return !prevLabels.some(existing => {
+                return Math.abs(pos.x - existing.x) < 100 && 
+                       Math.abs(pos.y - existing.y) < LINE_HEIGHT * 2;
+            });
+        }) || positions[0];
+    }
+
+    detections.forEach((det, i) => {
+        const { x, y, width, height } = det.box;
+        const area = width * height;
+        
+        const pos = findBestPosition(det.box);
+        prevLabels.push(pos);
+
+        const areaText = area > 1000 ? `${(area/1000).toFixed(1)}k` : area;
+        const distance = Math.sqrt(area);
+
+        const labelText = [
+            `#${i+1}`,
+            `Prox: ${distance.toFixed(1)}u`,
+            `Conf: ${det.score.toFixed(2)}`
+        ].join('\n');
+
+        ctx.font = 'bold 12px Arial';
+        const textWidth = ctx.measureText(labelText.split('\n')[0]).width;
+        const textHeight = LINE_HEIGHT * labelText.split('\n').length;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(
+            pos.x - 5,
+            pos.y - textHeight + 5,
+            textWidth + 10,
+            textHeight + 5
+        );
+
+        ctx.fillStyle = '#00FF00';
+        labelText.split('\n').forEach((line, idx) => {
+            ctx.fillText(
+                line,
+                pos.x,
+                pos.y + (LINE_HEIGHT * idx)
+            );
+        });
+    });
+}
+
+function logDetectionData(detections, imgWidth, imgHeight, model, inputSize, scoreThreshold) {
+    console.clear();
+    console.log('⚙️ Configuração:');
+    console.table({
+        'Modelo': model,
+        'Input Size': inputSize,
+        'Score Threshold': scoreThreshold,
+        'Dimensões da Imagem': `${imgWidth}x${imgHeight}`
+    });
+    
+    console.log('\n👥 Resultados:');
+    console.table(detections.map((d, i) => ({
+        'Rosto': i+1,
+        'Largura': Math.round(d.box.width),
+        'Altura': Math.round(d.box.height),
+        'Área': Math.round(d.box.width * d.box.height),
+        'Confiança': model === 'mtcnn' ? '-' : d.score?.toFixed(2) || '-'
+    })));
+}
+            
+        window.onload = run;
+    </script>
+</body>
+</html>
